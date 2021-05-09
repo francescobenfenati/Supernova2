@@ -35,7 +35,7 @@ class OOSAnalyzer(Module):
         self.timetoplot=60
         self.final_delay=0
 
-        self.tshitsdf=pd.DataFrame(columns=['DOM','time']) #contains times of all hits in a TS                                                                                                           
+        self.tshitsdf=pd.DataFrame(columns=['DOM','TSCounter','time']) #contains times of all hits in a TS and the Timeslice timestamp                                                                                                          
         self.delaysdf=pd.DataFrame(columns=['DOM','delay','Time']) #contains all delays of the delay distribution 
         
         self.counter=0
@@ -77,13 +77,19 @@ class OOSAnalyzer(Module):
         
         #fixing DOM 1 Large 
         dom1=tshits[tshits.dom_id == 818798894]
+
         pmt1_12 = dom1[dom1.channel_id == 12]
-        print(pmt1_12)
+
+        if len(pmt1_12.time) == 0: #if for some reasons the OP skips the hit injection for that TS, then skip the TS
+            print("Hit missing for DOM1 !")
+            print("L1 DOMs in this TS = ",self.doms)
+            print(pmt1_12)
+            return blob
 
         t = pmt1_12.time[0]
         #print('DOM1 channel 12 hit time  = ',t)
 
-        self.tshitsdf.loc[len(self.tshitsdf)+1] = [1,t]
+        self.tshitsdf.loc[len(self.tshitsdf)+1] = [1,TSCounter,t]
 
         #cycle over the remaining  DOMS 
         now = datetime.now()
@@ -104,12 +110,17 @@ class OOSAnalyzer(Module):
                 
             #fixing for all the LARGE Board
             pmtd_12 = dom2[dom2.channel_id == 12]
-            
+
+            if len(pmtd_12.time) == 0: #if the hit is missing, skip to next DOM
+                print("Hit missing for DOM",dom_number,"!")
+                print(pmtd_12)
+                continue
+
             #print('-.-.-.-.-.-.-.-.-.-.-.-')
             #print('DOM_',dom_number)
 
             tt = pmtd_12.time[0]
-            self.tshitsdf.loc[len(self.tshitsdf)+1] = [dom_number, tt]
+            self.tshitsdf.loc[len(self.tshitsdf)+1] = [dom_number,TSCounter,tt]
 
             deltat = tt-t
             self.delaysdf.loc[len(self.delaysdf)+1] = [dom_number,deltat,TSCounter]
@@ -126,13 +137,15 @@ class OOSAnalyzer(Module):
             #if TSindex%3600==0:
             #    self.plot_delays(str(Dom_numbers),delay_over_TS)    
 
-        #save zoomdf
+        #save dataframes to csv every 1 hour
         if TSindex%3600==0:
             print('saving dataframes')
             self.tshitsdf.to_csv("/home/km3net/analysis/Phase2/Dataframes/tshits/tshitsdf_"+str(TSindex)+".csv",mode='a',header=True)
             self.delaysdf.to_csv("/home/km3net/analysis/Phase2/Dataframes/delays/delaysdf_"+str(TSindex)+".csv",mode='a',header=True)
             print("dataframes saved")
-        
+            tshitsdf = tshitsdf.iloc[0:0]
+            delaysdf = delaysdf.iloc[0:0]
+
         #plot at each hour if OOS not occurred                                                                                                                                                      
         #if TSindex%3600==0:
         #    print('FINALLY PLOTTING!')
@@ -140,121 +153,9 @@ class OOSAnalyzer(Module):
         else:
             return blob
         
-    def over_threshold(self):
-        #Threshold delays (1 micro, 100 ns, 50 ns)
-        if abs(self.final_delay) > 1000:
-            Over1micro = self.testdf.loc[len(self.testdf)].to_csv('Ph2_Over1micro.csv',mode='a',header=False) 
-            self.status=1
-        elif abs(self.final_delay) > 100:
-            Over100nano = self.testdf.loc[len(self.testdf)].to_csv('Ph2_Over100nano.csv',mode='a',header=False) 
-            self.status=1
-        elif abs(self.final_delay) > 50:
-            Over50nano = self.testdf.loc[len(self.testdf)].to_csv('Ph2_Over50nano.csv',mode='a',header=False) 
-            self.status=1
-       # else:
-           # print("Delay is smaller than 50 ns")
-
-    def summary(self,i):
-        #le calcoliamo come valore di riferimento sulle prime N TS, poi li possiamo aggiornare per printare                          
-        df_dom = self.testdf[(self.testdf.DOMnumber == i)]
-        MEAN = df_dom["deltaT"].mean()
-        MAX =  df_dom["deltaT"].max()
-        MIN =  df_dom["deltaT"].min()
-        domname = 'DOM'+str(i+1)
-        self.SUMMARY.loc[len(self.SUMMARY)+1] = [now,domname, MEAN, MAX,MIN]
-
-    def plot_delays(self,dom,delays):
-        fig,ax = plt.subplots()
-        #if dom == '2' or dom == '11':
-        #    x_entries,binning,_ = plt.hist(delays,bins=100,range = [-0.2e6,+0.0e6],density=0,alpha=0.5,color='black')
-        #elif dom == '5' or dom == '9' or dom == '6' or dom == '7' or dom == '10' or dom == '17':
-        #    x_entries,binning,_ = plt.hist(delays,bins=100,range = [0.0e6,+0.1e6],density=0,alpha=0.5,color='black')
-        #elif dom == '8' or dom == '18':
-        #    x_entries,binning,_ = plt.hist(delays,bins=100,range = [-0.1e6,0.0e6],density=0,alpha=0.5,color='black')
-        #elif dom == '14' or dom == '12':
-        #    x_entries,binning,_ = plt.hist(delays,bins=100,range = [-0.2e6,-0.1e6],density=0,alpha=0.5,color='black')            
-        #elif dom == '16':
-         #   x_entries,binning,_ = plt.hist(delays,bins=100,range = [0.1e6,0.2e6],density=0,alpha=0.5,color='black')
- 
-        x_entries,binning,_ = plt.hist(delays,bins=600,range = [0,+300e3] ,density=0,alpha=0.5,color='black')
-        ax.set_xlabel("Delta_t (ns)")
-        ax.set_ylabel("Occurrence")
-        fig.suptitle("DOM-"+dom)
-        namefig = "/home/km3net/analysis/Phase2/Images/Single_TS/DOM_"+dom
-        fig.savefig(namefig)
-        
-    def plotter(self):
-        now = datetime.now()
-        df_list = []
-        missing_dom=18-self.numberofactivedom
-        name=[]
-        Dom_number=[] #here you can get rid of Dom_number somehow, use self.doms directly instead
-        print('doms ',self.doms)
-        print('number of active doms ',self.numberofactivedom)
-        for j in self.doms:
-            if j == 1: #skip DOM 1
-                continue
-            Dom_number.append(j) #getting the doms in decimal base
-        
-        Dom_number.sort()
-        #Dom_number=Dom_number[2:] #exclude DOM 1
-        print('Dom number ',Dom_number)
-        for aa in Dom_number:
-            partial = self.testdf[(self.testdf.DOMnumber == aa)].tail(60)
-            name.append('CLB_'+str(aa))
-            # make a list of all dataframes in order                             
-            df_list.append(partial)
-        if missing_dom!=0:    
-            for i in range(missing_dom):
-                partial = self.testdf[(self.testdf.DOMnumber == 1)].tail(60)
-                df_list.append(partial)
-                name.append('CLB_'+str(1))
-        #start of the PLOT with 16 subplots
-        time = now.strftime("%y_%m_%d_%H_%M")
-        
-        fig = plt.figure(figsize=(10, 8))
-        outer = gridspec.GridSpec(4, 4, wspace=0.3, hspace=0.3)
-        for i,j in enumerate(Dom_number):
-            inner = gridspec.GridSpecFromSubplotSpec(1, 2,subplot_spec=outer[i], wspace=0.1, hspace=0.1)
-            axe = plt.Subplot(fig,inner[0])
-            if i<12:
-                axe.set_xticks([])
-            print('i = ',i)
-            print('dom number ', j)
-            l=df_list[i].plot(x ='Time', y='deltaT', kind='scatter', ax=axe)
-            axe2 = plt.Subplot(fig, inner[1])
-            axe2.tick_params(colors='red')
-            if i==3 or i == 7 or i == 11 or i == 15:
-                axe2.yaxis.tick_right()
-                #axe2.tick_params(right=True, labelright=True,colors='red')
-            else:
-                axe2.set_yticks([])
-            
-            g=self.testdf[(self.testdf.DOMnumber == j)].hist(column='deltaT',ax=axe2,color = "red")
-            fig.add_subplot(axe)
-            fig.add_subplot(axe2)
-            titlename = name[i]
-            axe.set_title(titlename)
-            axe.set_xlabel('')
-            axe.set_ylabel('')
-            axe2.set_title('')
-            if i==0:
-                axe.set_ylabel('Delay (ns)')
-            elif i==15:
-                axe2.set_xlabel('TIME (s)')
-            
-        fig.suptitle('DELAYS_referred_CLB1_at:'+time,y=0.05,x=0.5)
-        fig.tight_layout()
-        namefigure="/home/km3net/analysis/Phase2/Images/Multi_TS/Delays_DOMs_"+time
-        fig.savefig(namefigure)
-        self.testdf.sort_values(by = ['DOMnumber','Time']).tail(840).to_csv("/home/km3net/analysis/Phase2/Dataframes/Overtime/Delays_DOMs_"+time,index=False)
-        self.testdf = self.testdf.iloc[0:0]
-
     def finish(self):
         self.plotter()
         print("killed CTRL_C")
-    
-
     
     
 def main():
