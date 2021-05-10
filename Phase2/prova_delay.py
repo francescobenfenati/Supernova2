@@ -64,6 +64,7 @@ class OOSAnalyzer(Module):
         self.doms = np.unique(tshits['dom_id']) 
         self.doms = [self.Dom_id_name[str(i)] for i in self.doms]
         self.doms.sort()
+        #print("Doms in the timeslice are ",self.doms)
 
         if len(self.doms)== 0:
             return blob
@@ -78,6 +79,9 @@ class OOSAnalyzer(Module):
         #fixing DOM 1 Large 
         dom1=tshits[tshits.dom_id == 818798894]
 
+        #dom17=tshits[tshits.dom_id == 818785841]
+        #print("dom 17", dom17)
+        
         pmt1_12 = dom1[dom1.channel_id == 12]
 
         if len(pmt1_12.time) == 0: #if for some reasons the OP skips the hit injection for that TS, then skip the TS
@@ -99,8 +103,8 @@ class OOSAnalyzer(Module):
         
 
         for i in self.orderedDOM[1:]:
-            #to skip DOM 3,4,5,7,8,9,10,15,17
-            if i == 818848239 or i == 818798906 or i == 818848226 or i == 818806250 or i == 818785829 or i == 818785841 or i == 818806263 or i == 818785853 or i == 818848251:
+            #to skip DOM 3,5,7,8,9,15,17
+            if i == 818848239 or i == 818848226 or i == 818806250 or i == 818785829 or i == 818806263 or i == 818848251:
                 continue
             dom_number = self.Dom_id_name[str(i)]
             dom2=tshits[tshits.dom_id == i]
@@ -143,8 +147,8 @@ class OOSAnalyzer(Module):
             self.tshitsdf.to_csv("/home/km3net/analysis/Phase2/Dataframes/tshits/tshitsdf_"+str(TSindex)+".csv",mode='a',header=True)
             self.delaysdf.to_csv("/home/km3net/analysis/Phase2/Dataframes/delays/delaysdf_"+str(TSindex)+".csv",mode='a',header=True)
             print("dataframes saved")
-            tshitsdf = tshitsdf.iloc[0:0]
-            delaysdf = delaysdf.iloc[0:0]
+            self.tshitsdf = self.tshitsdf.iloc[0:0]
+            self.delaysdf = self.delaysdf.iloc[0:0]
 
         #plot at each hour if OOS not occurred                                                                                                                                                      
         #if TSindex%3600==0:
@@ -154,7 +158,6 @@ class OOSAnalyzer(Module):
             return blob
         
     def finish(self):
-        self.plotter()
         print("killed CTRL_C")
     
     
